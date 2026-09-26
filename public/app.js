@@ -1,5 +1,6 @@
 const sizes=[512,256,128,64,32];
 const seeds=["alpha","bravo","charlie","delta","echo","foxtrot","golf","hotel"];
+const COUNT=16;
 
 function hash32(s){
   let h=2166136261>>>0;
@@ -10,73 +11,40 @@ function hash32(s){
 function colorFrom(n,offset){return `hsl(${(n+offset*137)%360} 82% 58%)`}
 function loadImage(src){return new Promise((ok,fail)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=fail;i.src=src})}
 function id(prefix,n){return `${prefix}-${String(n).padStart(2,"0")}`}
-
-async function tintMask(mask,color){
-  // effect PNG stores mask intensity in RGB. Convert luminance to alpha explicitly.
-  const source=document.createElement("canvas");source.width=source.height=512;
-  const sx=source.getContext("2d",{willReadFrequently:true});
-  sx.drawImage(mask,0,0,512,512);
-  const pixels=sx.getImageData(0,0,512,512);
-
-  const probe=document.createElement("canvas");probe.width=probe.height=1;
-  const px=probe.getContext("2d");
-  px.fillStyle=color;px.fillRect(0,0,1,1);
-  const [cr,cg,cb]=px.getImageData(0,0,1,1).data;
-
-  for(let i=0;i<pixels.data.length;i+=4){
-    const intensity=Math.max(pixels.data[i],pixels.data[i+1],pixels.data[i+2])/255;
-    // Softer effect: suppress noisy low-level mask pixels and cap opacity.
-    // Smoothstep gives antialiased edges instead of a hard chroma-key contour.
-    const t=Math.max(0,Math.min(1,(intensity-0.10)/0.90));
-    const smooth=t*t*(3-2*t);
-    // Keep the interior strong; only feather the antialiased boundary.
-    const edgeFeather=smooth*smooth*(3-2*smooth);
-    const alpha=Math.pow(edgeFeather,0.82)*0.96;
-    pixels.data[i]=cr;
-    pixels.data[i+1]=cg;
-    pixels.data[i+2]=cb;
-    pixels.data[i+3]=Math.round(alpha*pixels.data[i+3]);
-  }
-
-  sx.putImageData(pixels,0,0);
-  return source;
+function tint(img,color){
+  const c=document.createElement("canvas");c.width=c.height=512;
+  const x=c.getContext("2d");x.drawImage(img,0,0,512,512);
+  x.globalCompositeOperation="source-in";x.fillStyle=color;x.fillRect(0,0,512,512);
+  return c;
 }
-async function loadLayer(folder,name,color){
-  const [art,effect]=await Promise.all([
-    loadImage(`/assets/${folder}/${name}-art.png`),
-    loadImage(`/assets/${folder}/${name}-effect.png`)
-  ]);
-  return {art,effect:await tintMask(effect,color)};
-}
-async function descriptor(seed){
+function descriptor(seed){
   const h=hash32(seed);
   return {
-    base:id("base",(h%10)+1),
-    frame:id("frame",((h>>>8)%24)+1),
-    core:id("core",((h>>>16)%35)+1),
+    base:id("base",(h%COUNT)+1),
+    frame:id("frame",((h>>>8)%COUNT)+1),
+    core:id("core",((h>>>16)%COUNT)+1),
     colors:[colorFrom(h,1),colorFrom(h>>>4,2),colorFrom(h>>>9,3)]
   };
 }
 async function render(seed,size){
-  const d=await descriptor(seed);
-  const [base,frame,core]=await Promise.all([
-    loadLayer("bases",d.base,d.colors[0]),
-    loadLayer("frames",d.frame,d.colors[1]),
-    loadLayer("cores",d.core,d.colors[2])
+  const d=descriptor(seed);
+  const [b,f,c]=await Promise.all([
+    loadImage(`/assets-svg/bases/${d.base}.svg`),
+    loadImage(`/assets-svg/frames/${d.frame}.svg`),
+    loadImage(`/assets-svg/cores/${d.core}.svg`)
   ]);
   const out=document.createElement("canvas");out.width=out.height=size;
   const x=out.getContext("2d");x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";
-  // Preserve the authored geometry: every layer is rendered at 100%.
-  for(const l of [base,frame,core]){
-    x.drawImage(l.art,0,0,size,size);
-    x.drawImage(l.effect,0,0,size,size);
-  }
+  x.fillStyle="#070a0e";x.fillRect(0,0,size,size);
+  x.drawImage(tint(b,d.colors[0]),0,0,size,size);
+  x.drawImage(tint(f,d.colors[1]),0,0,size,size);
+  x.drawImage(tint(c,d.colors[2]),0,0,size,size);
   return {out,d};
 }
 const app=document.querySelector("#app");
 for(const seed of seeds){
   const row=document.createElement("section");row.className="row";
-  const d=await descriptor(seed);
+  const d=descriptor(seed);
   const title=document.createElement("div");title.style.minWidth="150px";
   title.innerHTML=`<strong>${seed}</strong><br><code>${d.base}<br>${d.frame}<br>${d.core}</code>`;
   row.append(title);
