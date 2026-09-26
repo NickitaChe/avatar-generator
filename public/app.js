@@ -29,7 +29,9 @@ async function tintMask(mask,color){
     // Smoothstep gives antialiased edges instead of a hard chroma-key contour.
     const t=Math.max(0,Math.min(1,(intensity-0.10)/0.90));
     const smooth=t*t*(3-2*t);
-    const alpha=Math.pow(smooth,1.18)*0.78;
+    // Keep the interior strong; only feather the antialiased boundary.
+    const edgeFeather=smooth*smooth*(3-2*smooth);
+    const alpha=Math.pow(edgeFeather,0.82)*0.96;
     pixels.data[i]=cr;
     pixels.data[i+1]=cg;
     pixels.data[i+2]=cb;
@@ -64,18 +66,10 @@ async function render(seed,size){
   ]);
   const out=document.createElement("canvas");out.width=out.height=size;
   const x=out.getContext("2d");x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";
-  // Keep the base visually dominant. Frames are inset and the core is slightly
-  // reduced so independently generated layers do not fight for the same pixels.
-  const layers=[
-    {layer:base, scale:1.00},
-    {layer:frame,scale:0.91},
-    {layer:core, scale:0.86}
-  ];
-  for(const {layer:l,scale} of layers){
-    const side=size*scale;
-    const offset=(size-side)/2;
-    x.drawImage(l.art,offset,offset,side,side);
-    x.drawImage(l.effect,offset,offset,side,side);
+  // Preserve the authored geometry: every layer is rendered at 100%.
+  for(const l of [base,frame,core]){
+    x.drawImage(l.art,0,0,size,size);
+    x.drawImage(l.effect,0,0,size,size);
   }
   return {out,d};
 }
