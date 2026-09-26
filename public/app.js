@@ -12,10 +12,27 @@ function loadImage(src){return new Promise((ok,fail)=>{const i=new Image();i.onl
 function id(prefix,n){return `${prefix}-${String(n).padStart(2,"0")}`}
 
 async function tintMask(mask,color){
-  const c=document.createElement("canvas");c.width=c.height=512;
-  const x=c.getContext("2d");x.fillStyle=color;x.fillRect(0,0,512,512);
-  x.globalCompositeOperation="destination-in";x.drawImage(mask,0,0);
-  return c;
+  // effect PNG stores mask intensity in RGB. Convert luminance to alpha explicitly.
+  const source=document.createElement("canvas");source.width=source.height=512;
+  const sx=source.getContext("2d",{willReadFrequently:true});
+  sx.drawImage(mask,0,0,512,512);
+  const pixels=sx.getImageData(0,0,512,512);
+
+  const probe=document.createElement("canvas");probe.width=probe.height=1;
+  const px=probe.getContext("2d");
+  px.fillStyle=color;px.fillRect(0,0,1,1);
+  const [cr,cg,cb]=px.getImageData(0,0,1,1).data;
+
+  for(let i=0;i<pixels.data.length;i+=4){
+    const intensity=Math.max(pixels.data[i],pixels.data[i+1],pixels.data[i+2]);
+    pixels.data[i]=cr;
+    pixels.data[i+1]=cg;
+    pixels.data[i+2]=cb;
+    pixels.data[i+3]=Math.round(intensity*pixels.data[i+3]/255);
+  }
+
+  sx.putImageData(pixels,0,0);
+  return source;
 }
 async function loadLayer(folder,name,color){
   const [art,effect]=await Promise.all([
