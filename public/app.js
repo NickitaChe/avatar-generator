@@ -1,58 +1,9 @@
-const sizes=[512,256,128,64,32];
-const seeds=["alpha","bravo","charlie","delta","echo","foxtrot","golf","hotel"];
-const COUNT=16;
-
-function hash32(s){
-  let h=2166136261>>>0;
-  for(const ch of new TextEncoder().encode(s)){h^=ch;h=Math.imul(h,16777619)>>>0}
-  h^=h>>>16;h=Math.imul(h,0x7feb352d);h^=h>>>15;h=Math.imul(h,0x846ca68b);h^=h>>>16;
-  return h>>>0;
-}
-function colorFrom(n,offset){return `hsl(${(n+offset*137)%360} 82% 58%)`}
-function loadImage(src){return new Promise((ok,fail)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=fail;i.src=src})}
-function id(prefix,n){return `${prefix}-${String(n).padStart(2,"0")}`}
-function tint(img,color){
-  const c=document.createElement("canvas");c.width=c.height=512;
-  const x=c.getContext("2d");x.drawImage(img,0,0,512,512);
-  x.globalCompositeOperation="source-in";x.fillStyle=color;x.fillRect(0,0,512,512);
-  return c;
-}
-function descriptor(seed){
-  const h=hash32(seed);
-  return {
-    base:id("base",(h%COUNT)+1),
-    frame:id("frame",((h>>>8)%COUNT)+1),
-    core:id("core",((h>>>16)%COUNT)+1),
-    colors:[colorFrom(h,1),colorFrom(h>>>4,2),colorFrom(h>>>9,3)]
-  };
-}
-async function render(seed,size){
-  const d=descriptor(seed);
-  const [b,f,c]=await Promise.all([
-    loadImage(`/assets-svg/bases/${d.base}.svg`),
-    loadImage(`/assets-svg/frames/${d.frame}.svg`),
-    loadImage(`/assets-svg/cores/${d.core}.svg`)
-  ]);
-  const out=document.createElement("canvas");out.width=out.height=size;
-  const x=out.getContext("2d");x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";
-  x.fillStyle="#070a0e";x.fillRect(0,0,size,size);
-  x.drawImage(tint(b,d.colors[0]),0,0,size,size);
-  x.drawImage(tint(f,d.colors[1]),0,0,size,size);
-  x.drawImage(tint(c,d.colors[2]),0,0,size,size);
-  return {out,d};
-}
-const app=document.querySelector("#app");
-for(const seed of seeds){
-  const row=document.createElement("section");row.className="row";
-  const d=descriptor(seed);
-  const title=document.createElement("div");title.style.minWidth="150px";
-  title.innerHTML=`<strong>${seed}</strong><br><code>${d.base}<br>${d.frame}<br>${d.core}</code>`;
-  row.append(title);
-  for(const size of sizes){
-    const wrap=document.createElement("div");wrap.className="item";
-    const {out}=await render(seed,size);wrap.append(out);
-    const label=document.createElement("code");label.textContent=`${size}×${size}`;wrap.append(label);
-    row.append(wrap);
-  }
-  app.append(row);
-}
+const sizes=[512,256,128,64,32],seeds=["alpha","bravo","charlie","delta","echo","foxtrot","golf","hotel"];
+const names={"bases": ["clock", "compass", "globe", "astrolabe", "hexagon", "radar", "crossgrid", "dotted", "eye", "rings", "diamond", "waves", "eclipse", "target", "petals", "spiral", "triangles", "square", "octagon", "hourglass", "maze", "circuit", "orbit", "sun", "moon", "shards", "fan", "topography", "split", "arches", "nodes", "runes"], "frames": ["cardinal", "broken-ring", "nodes", "vortex", "triangle", "square", "pentagon", "hexagon", "heptagon", "octagon", "nonagon", "decagon", "orbit-a", "orbit-b", "orbit-c", "orbit-d", "corner-a", "corner-b", "corner-c", "corner-d", "ticks-a", "ticks-b", "ticks-c", "ticks-d", "diamond-a", "diamond-b", "diamond-c", "diamond-d", "constellation", "chain", "shards", "brush"], "cores": ["target", "star", "diamond", "crosshair", "orb", "crescent", "sun", "triangle-eye", "hex-core", "yin-yang", "reticle", "spiral", "eye", "eclipse", "burst", "hub", "hourglass", "infinity", "cube", "flame", "bolt", "keyhole", "atom", "crown", "flower", "trident", "shield", "comet", "heart", "anchor", "crystal", "portal"]};
+function hash32(s){let h=2166136261>>>0;for(const ch of new TextEncoder().encode(s)){h^=ch;h=Math.imul(h,16777619)>>>0}h^=h>>>16;h=Math.imul(h,0x7feb352d);h^=h>>>15;h=Math.imul(h,0x846ca68b);h^=h>>>16;return h>>>0}
+const color=(n,o)=>`hsl(${(n+o*137)%360} 82% 58%)`,load=s=>new Promise((ok,no)=>{const i=new Image;i.onload=()=>ok(i);i.onerror=no;i.src=s});
+function tint(img,c){const o=document.createElement("canvas");o.width=o.height=512;const x=o.getContext("2d");x.drawImage(img,0,0);x.globalCompositeOperation="source-in";x.fillStyle=c;x.fillRect(0,0,512,512);return o}
+function desc(seed){const h=hash32(seed);return{base:names.bases[h%32],frame:names.frames[(h>>>8)%32],core:names.cores[(h>>>16)%32],colors:[color(h,1),color(h>>>4,2),color(h>>>9,3)]}}
+async function render(seed,size){const d=desc(seed),[b,f,c]=await Promise.all([load(`/assets-svg/bases/${d.base}.svg`),load(`/assets-svg/frames/${d.frame}.svg`),load(`/assets-svg/cores/${d.core}.svg`)]),o=document.createElement("canvas");o.width=o.height=size;const x=o.getContext("2d");x.fillStyle="#070a0e";x.fillRect(0,0,size,size);x.drawImage(tint(b,d.colors[0]),0,0,size,size);x.drawImage(tint(f,d.colors[1]),0,0,size,size);x.drawImage(tint(c,d.colors[2]),0,0,size,size);return{o,d}}
+for(const seed of seeds){const row=document.createElement("section");row.className="row";const d=desc(seed),t=document.createElement("div");t.style.minWidth="160px";t.innerHTML=`<strong>${seed}</strong><br><code>${d.base}<br>${d.frame}<br>${d.core}</code>`;row.append(t);for(const size of sizes){const w=document.createElement("div");w.className="item";const{o}=await render(seed,size);w.append(o);const l=document.createElement("code");l.textContent=`${size}×${size}`;w.append(l);row.append(w)}app.append(row)}
+const cat=document.querySelector("#catalog");for(const [folder,list] of Object.entries(names)){const h=document.createElement("h2");h.textContent=folder;cat.append(h);const g=document.createElement("div");g.className="catalog";for(const name of list){const d=document.createElement("div");d.className="asset";const i=document.createElement("img");i.src=`/assets-svg/${folder}/${name}.svg`;const c=document.createElement("code");c.textContent=name;d.append(i,c);g.append(d)}cat.append(g)}
