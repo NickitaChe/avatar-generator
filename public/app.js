@@ -24,11 +24,16 @@ async function tintMask(mask,color){
   const [cr,cg,cb]=px.getImageData(0,0,1,1).data;
 
   for(let i=0;i<pixels.data.length;i+=4){
-    const intensity=Math.max(pixels.data[i],pixels.data[i+1],pixels.data[i+2]);
+    const intensity=Math.max(pixels.data[i],pixels.data[i+1],pixels.data[i+2])/255;
+    // Softer effect: suppress noisy low-level mask pixels and cap opacity.
+    // Smoothstep gives antialiased edges instead of a hard chroma-key contour.
+    const t=Math.max(0,Math.min(1,(intensity-0.10)/0.90));
+    const smooth=t*t*(3-2*t);
+    const alpha=Math.pow(smooth,1.18)*0.78;
     pixels.data[i]=cr;
     pixels.data[i+1]=cg;
     pixels.data[i+2]=cb;
-    pixels.data[i+3]=Math.round(intensity*pixels.data[i+3]/255);
+    pixels.data[i+3]=Math.round(alpha*pixels.data[i+3]);
   }
 
   sx.putImageData(pixels,0,0);
@@ -59,9 +64,18 @@ async function render(seed,size){
   ]);
   const out=document.createElement("canvas");out.width=out.height=size;
   const x=out.getContext("2d");x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";
-  for(const l of [base,frame,core]){
-    x.drawImage(l.art,0,0,size,size);
-    x.drawImage(l.effect,0,0,size,size);
+  // Keep the base visually dominant. Frames are inset and the core is slightly
+  // reduced so independently generated layers do not fight for the same pixels.
+  const layers=[
+    {layer:base, scale:1.00},
+    {layer:frame,scale:0.91},
+    {layer:core, scale:0.86}
+  ];
+  for(const {layer:l,scale} of layers){
+    const side=size*scale;
+    const offset=(size-side)/2;
+    x.drawImage(l.art,offset,offset,side,side);
+    x.drawImage(l.effect,offset,offset,side,side);
   }
   return {out,d};
 }
