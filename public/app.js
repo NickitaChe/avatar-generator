@@ -3,12 +3,33 @@ const names={"bases": ["clock", "compass", "globe", "astrolabe", "hexagon", "rad
 function hash32(s){let h=2166136261>>>0;for(const ch of new TextEncoder().encode(s)){h^=ch;h=Math.imul(h,16777619)>>>0}h^=h>>>16;h=Math.imul(h,0x7feb352d);h^=h>>>15;h=Math.imul(h,0x846ca68b);h^=h>>>16;return h>>>0}
 const color=(n,o)=>`hsl(${(n+o*137)%360} 82% 58%)`,load=s=>new Promise((ok,no)=>{const i=new Image;i.onload=()=>ok(i);i.onerror=no;i.src=s});
 function tint(img,c){const o=document.createElement("canvas");o.width=o.height=512;const x=o.getContext("2d");x.drawImage(img,0,0);x.globalCompositeOperation="source-in";x.fillStyle=c;x.fillRect(0,0,512,512);return o}
-function desc(seed){const h=hash32(seed);return{base:names.bases[h%32],frame:names.frames[(h>>>8)%32],core:names.cores[(h>>>16)%32],colors:[color(h,1),color(h>>>4,2),color(h>>>9,3)]}}
-async function render(seed,size){const d=desc(seed),[b,f,c]=await Promise.all([load(`/assets-svg/bases/${d.base}.svg`),load(`/assets-svg/frames/${d.frame}.svg`),load(`/assets-svg/cores/${d.core}.svg`)]),o=document.createElement("canvas");o.width=o.height=size;const x=o.getContext("2d");x.fillStyle="#070a0e";x.fillRect(0,0,size,size);x.drawImage(tint(b,d.colors[0]),0,0,size,size);x.drawImage(tint(f,d.colors[1]),0,0,size,size);x.drawImage(tint(c,d.colors[2]),0,0,size,size);return{o,d}}
-for(const seed of seeds){const row=document.createElement("section");row.className="row";const d=desc(seed),t=document.createElement("div");t.style.minWidth="160px";t.innerHTML=`<strong>${seed}</strong><br><code>${d.base}<br>${d.frame}<br>${d.core}</code>`;row.append(t);for(const size of sizes){const w=document.createElement("div");w.className="item";const{o}=await render(seed,size);w.append(o);const l=document.createElement("code");l.textContent=`${size}×${size}`;w.append(l);row.append(w)}app.append(row)}
-const cat=document.querySelector("#catalog");for(const [folder,list] of Object.entries(names)){const h=document.createElement("h2");h.textContent=folder;cat.append(h);const g=document.createElement("div");g.className="catalog";for(const name of list){const d=document.createElement("div");d.className="asset";const i=document.createElement("img");i.src=`/assets-svg/${folder}/${name}.svg`;const c=document.createElement("code");c.textContent=name;d.append(i,c);g.append(d)}cat.append(g)}
-
-
+function desc(seed){
+  const h=hash32(seed);
+  const scheme=paletteSchemes[h%paletteSchemes.length];
+  const tone=scheme.tones[(h>>>5)%scheme.tones.length];
+  const hue=(h>>>10)%360;
+  const palette=paletteFor(hue,scheme,tone);
+  return{
+    base:names.bases[h%32],
+    frame:names.frames[(h>>>8)%32],
+    core:names.cores[(h>>>16)%32],
+    palette:{...palette,scheme:scheme.name,tone,hue}
+  };
+}
+async function render(seed,size){
+  const d=desc(seed),[b,f,c]=await Promise.all([
+    load(`/assets-svg/bases/${d.base}.svg`),
+    load(`/assets-svg/frames/${d.frame}.svg`),
+    load(`/assets-svg/cores/${d.core}.svg`)
+  ]),o=document.createElement("canvas");
+  o.width=o.height=size;
+  const x=o.getContext("2d");
+  x.fillStyle=d.palette.background;x.fillRect(0,0,size,size);
+  x.drawImage(tint(b,d.palette.base),0,0,size,size);
+  x.drawImage(tint(f,d.palette.frame),0,0,size,size);
+  x.drawImage(tint(c,d.palette.core),0,0,size,size);
+  return{o,d};
+}
 const paletteSchemes=[
   {name:"analog",offsets:[-28,0,28],tones:["muted","normal","vivid"]},
   {name:"complement",offsets:[0,18,180],tones:["muted","normal","vivid"]},
@@ -46,6 +67,10 @@ async function renderPaletteAvatar(images,palette){
   x.drawImage(tint(images[2],palette.core),0,0,256,256);
   return o;
 }
+for(const seed of seeds){const row=document.createElement("section");row.className="row";const d=desc(seed),t=document.createElement("div");t.style.minWidth="160px";t.innerHTML=`<strong>${seed}</strong><br><code>${d.base}<br>${d.frame}<br>${d.core}<br>${d.palette.scheme} · ${d.palette.tone} · H${d.palette.hue}</code>`;row.append(t);for(const size of sizes){const w=document.createElement("div");w.className="item";const{o}=await render(seed,size);w.append(o);const l=document.createElement("code");l.textContent=`${size}×${size}`;w.append(l);row.append(w)}app.append(row)}
+const cat=document.querySelector("#catalog");for(const [folder,list] of Object.entries(names)){const h=document.createElement("h2");h.textContent=folder;cat.append(h);const g=document.createElement("div");g.className="catalog";for(const name of list){const d=document.createElement("div");d.className="asset";const i=document.createElement("img");i.src=`/assets-svg/${folder}/${name}.svg`;const c=document.createElement("code");c.textContent=name;d.append(i,c);g.append(d)}cat.append(g)}
+
+
 const paletteRoot=document.querySelector("#palettes");
 if(paletteRoot){
   const labGeometry={base:"astrolabe",frame:"broken-ring",core:"eye"};
