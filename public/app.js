@@ -1,0 +1,6 @@
+const hero=document.querySelector("#hero"),gallery=document.querySelector("#gallery"),endpoint=document.querySelector("#endpoint");
+const makeSeed=()=>crypto.randomUUID().replaceAll("-","").slice(0,12);
+const avatarUrl=(seed,size=512)=>`/api/avatar/${encodeURIComponent(seed)}.svg?size=${size}`;
+function tile(seed,heroMode=false){const d=document.createElement("div");d.className=heroMode?"hero-avatar":"card";const img=new Image();img.src=avatarUrl(seed);img.alt=`Generated avatar for ${seed}`;const s=document.createElement(heroMode?"div":"span");s.className=heroMode?"seed":"";s.textContent=seed;d.append(img,s);return d}
+function populate(){hero.replaceChildren();gallery.replaceChildren();const seeds=Array.from({length:16},makeSeed);seeds.slice(0,4).forEach(s=>hero.append(tile(s,true)));seeds.forEach(s=>gallery.append(tile(s)));const example=seeds[0];endpoint.textContent=`${location.origin}/api/avatar/${example}.svg?size=512`;document.querySelector("#copy").onclick=async()=>{await navigator.clipboard.writeText(endpoint.textContent);document.querySelector("#copy").textContent="Copied ✓";setTimeout(()=>document.querySelector("#copy").textContent="Copy example URL",1200)}}
+document.querySelector("#reroll").addEventListener("click",populate);populate();
