@@ -1,6 +1,160 @@
-const schemes=[["analog",[-28,0,28]],["complement",[0,18,180]],["mono-accent",[0,0,180]],["warm-accent",[0,24,150]],["cold-accent",[0,-24,210]],["split",[0,150,210]],["mono",[0,0,0]],["triad",[0,120,240]]],tones=["muted","normal","vivid"],cfg={muted:[[38,50,58],[34,52,64]],normal:[[58,70,76],[36,56,66]],vivid:[[76,88,92],[38,58,68]]};
-const mod=(n,m)=>((n%m)+m)%m,hsl=(h,s,l)=>`hsl(${mod(Math.round(h),360)} ${s}% ${l}%)`;
-function hash32(s){let h=2166136261>>>0;for(const ch of new TextEncoder().encode(s)){h^=ch;h=Math.imul(h,16777619)>>>0}h^=h>>>16;h=Math.imul(h,0x7feb352d);h^=h>>>15;h=Math.imul(h,0x846ca68b);h^=h>>>16;return h>>>0}
-function palette(h){const[name,o]=schemes[h%8],tone=tones[(h>>>5)%3],hue=(h>>>10)%360,[sat,l]=cfg[tone],background=hsl(hue,tone==="vivid"?30:20,tone==="muted"?8:7);if(name==="mono-accent")return{background,base:hsl(hue,18,42),frame:hsl(hue,10,68),core:hsl(hue+180,sat[2],l[2])};if(name==="mono")return{background,base:hsl(hue,sat[0],32),frame:hsl(hue,sat[1],52),core:hsl(hue,sat[2],72)};const hs=o.map(x=>mod(hue+x,360));return{background,base:hsl(hs[0],sat[0],l[0]),frame:hsl(hs[1],sat[1],l[1]),core:hsl(hs[2],sat[2],l[2])}}
-const text=async(env,path,origin)=>(await env.ASSETS.fetch(new URL(path,origin))).text(),strip=s=>s.replace(/^.*?<g /s,"<g ").replace(/<\/svg>\s*$/,"");
-export default{async fetch(request,env){const u=new URL(request.url),m=u.pathname.match(/^\/api\/avatar(?:\/([^/]+))?(?:\.svg)?$/);if(!m)return env.ASSETS.fetch(request);const seed=decodeURIComponent(m[1]||u.searchParams.get("seed")||"avatar"),size=Math.max(16,Math.min(2048,Number(u.searchParams.get("size"))||512)),manifest=JSON.parse(await text(env,"/assets-svg/manifest.json",u.origin)),h=hash32(seed),a=manifest.assets,p=palette(h),pick=(x,n)=>x[n%x.length],base=pick(a.bases,h),frame=pick(a.frames,h>>>8),core=pick(a.cores,h>>>16);const[b,f,c]=await Promise.all([text(env,`/assets-svg/bases/${base}.svg`,u.origin),text(env,`/assets-svg/frames/${frame}.svg`,u.origin),text(env,`/assets-svg/cores/${core}.svg`,u.origin)]),layer=(s,col)=>`<g style="color:${col}">${strip(s).replaceAll("#fff","currentColor")}</g>`,body=`<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512"><rect width="512" height="512" fill="${p.background}"/>${layer(b,p.base)}${layer(f,p.frame)}${layer(c,p.core)}</svg>`;return new Response(body,{headers:{"Content-Type":"image/svg+xml; charset=utf-8","Cache-Control":"public, max-age=31536000, immutable"}})}}};
+const schemes = [
+  ["analog", [-28, 0, 28]],
+  ["complement", [0, 18, 180]],
+  ["mono-accent", [0, 0, 180]],
+  ["warm-accent", [0, 24, 150]],
+  ["cold-accent", [0, -24, 210]],
+  ["split", [0, 150, 210]],
+  ["mono", [0, 0, 0]],
+  ["triad", [0, 120, 240]],
+];
+
+const tones = ["muted", "normal", "vivid"];
+const toneConfig = {
+  muted: [[38, 50, 58], [34, 52, 64]],
+  normal: [[58, 70, 76], [36, 56, 66]],
+  vivid: [[76, 88, 92], [38, 58, 68]],
+};
+
+const modulo = (number, divisor) => ((number % divisor) + divisor) % divisor;
+const hsl = (hue, saturation, lightness) =>
+  `hsl(${modulo(Math.round(hue), 360)} ${saturation}% ${lightness}%)`;
+
+function hash32(value) {
+  let hash = 2166136261 >>> 0;
+
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= byte;
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x7feb352d);
+  hash ^= hash >>> 15;
+  hash = Math.imul(hash, 0x846ca68b);
+  hash ^= hash >>> 16;
+
+  return hash >>> 0;
+}
+
+function palette(hash) {
+  const [scheme, offsets] = schemes[hash % schemes.length];
+  const tone = tones[(hash >>> 5) % tones.length];
+  const hue = (hash >>> 10) % 360;
+  const [saturation, lightness] = toneConfig[tone];
+  const background = hsl(hue, tone === "vivid" ? 30 : 20, tone === "muted" ? 8 : 7);
+
+  if (scheme === "mono-accent") {
+    return {
+      background,
+      base: hsl(hue, 18, 42),
+      frame: hsl(hue, 10, 68),
+      core: hsl(hue + 180, saturation[2], lightness[2]),
+    };
+  }
+
+  if (scheme === "mono") {
+    return {
+      background,
+      base: hsl(hue, saturation[0], 32),
+      frame: hsl(hue, saturation[1], 52),
+      core: hsl(hue, saturation[2], 72),
+    };
+  }
+
+  const hues = offsets.map((offset) => modulo(hue + offset, 360));
+  return {
+    background,
+    base: hsl(hues[0], saturation[0], lightness[0]),
+    frame: hsl(hues[1], saturation[1], lightness[1]),
+    core: hsl(hues[2], saturation[2], lightness[2]),
+  };
+}
+
+async function readAsset(env, requestUrl, path) {
+  const response = await env.ASSETS.fetch(new URL(path, requestUrl));
+
+  if (!response.ok) {
+    throw new Error(`Unable to read asset ${path}: ${response.status}`);
+  }
+
+  return response.text();
+}
+
+function svgContent(source) {
+  return source
+    .replace(/^\s*(?:<\?xml[^>]*>\s*)?<svg\b[^>]*>/i, "")
+    .replace(/<\/svg>\s*$/i, "");
+}
+
+function layer(source, color, name) {
+  const content = svgContent(source).replaceAll("#fff", "currentColor");
+  return `<g data-layer="${name}" color="${color}" style="color:${color}">${content}</g>`;
+}
+
+function avatarRequest(pathname) {
+  const match = pathname.match(/^\/api\/avatar(?:\/([^/]+))?$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const encodedSeed = match[1]?.replace(/\.svg$/i, "");
+  return encodedSeed === undefined ? undefined : decodeURIComponent(encodedSeed);
+}
+
+function avatarSize(value) {
+  const requested = Number(value);
+  const size = Number.isFinite(requested) && requested !== 0 ? requested : 512;
+  return Math.max(16, Math.min(2048, Math.trunc(size)));
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const pathSeed = avatarRequest(url.pathname);
+
+    if (pathSeed === null) {
+      if (url.pathname === "/") {
+        return env.ASSETS.fetch(new Request(new URL("/demo", url), request));
+      }
+
+      return env.ASSETS.fetch(request);
+    }
+
+    const seed = pathSeed || url.searchParams.get("seed") || "avatar";
+    const size = avatarSize(url.searchParams.get("size"));
+    const manifest = JSON.parse(
+      await readAsset(env, request.url, "/assets-svg/manifest.json"),
+    );
+    const hash = hash32(seed);
+    const { assets } = manifest;
+    const colors = palette(hash);
+    const pick = (items, value) => items[value % items.length];
+    const base = pick(assets.bases, hash);
+    const frame = pick(assets.frames, hash >>> 8);
+    const core = pick(assets.cores, hash >>> 16);
+
+    const [baseSvg, frameSvg, coreSvg] = await Promise.all([
+      readAsset(env, request.url, `/assets-svg/bases/${base}.svg`),
+      readAsset(env, request.url, `/assets-svg/frames/${frame}.svg`),
+      readAsset(env, request.url, `/assets-svg/cores/${core}.svg`),
+    ]);
+
+    const body = [
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512" role="img" aria-label="Generated avatar">`,
+      `<rect data-layer="background" width="512" height="512" fill="${colors.background}"/>`,
+      layer(baseSvg, colors.base, "base"),
+      layer(frameSvg, colors.frame, "frame"),
+      layer(coreSvg, colors.core, "core"),
+      "</svg>",
+    ].join("");
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "image/svg+xml; charset=utf-8",
+        "Cache-Control": "public, max-age=31536000, s-maxage=31536000, immutable",
+      },
+    });
+  },
+};
