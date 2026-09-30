@@ -150,7 +150,7 @@ function applyEpic(body, trait, seed) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><defs><clipPath id="du"><polygon points="${p1}"/></clipPath><clipPath id="dd"><polygon points="${p2}"/></clipPath></defs><rect width="512" height="512" fill="#081723"/><g clip-path="url(#du)" transform="translate(${-shift/2} ${-shift/3})">${content}</g><g clip-path="url(#dd)" transform="translate(${shift/2} ${shift/3})">${content}</g></svg>`;
 }
 
-async function renderAvatar(env, requestUrl, manifest, seed, size) {
+async function renderAvatar(env, requestUrl, manifest, seed, size, forcedTrait = undefined) {
   const hash = hash32(seed);
   const { assets } = manifest;
   const colors = palette(hash);
@@ -171,7 +171,7 @@ async function renderAvatar(env, requestUrl, manifest, seed, size) {
     layer(coreSvg, colors.core, "core"),
     "</svg>",
   ].join("");
-  const trait = epicTrait(seed);
+  const trait = forcedTrait === undefined ? epicTrait(seed) : forcedTrait;
   return { svg: applyEpic(regular, trait, seed), trait };
 }
 
@@ -184,9 +184,12 @@ export default {
       if (!seeds.length) return new Response("At least one seed is required", { status: 400 });
       const size = avatarSize(url.searchParams.get("size"));
       const manifest = JSON.parse(await readAsset(env, request.url, "/assets-svg/manifest.json"));
+      const forceTrait = url.searchParams.get("trait");
+      const allowedTraits = new Set(["distortion", "glitch", "dislocation"]);
+      const forcedTrait = forceTrait && allowedTraits.has(forceTrait) ? forceTrait : undefined;
       const avatars = await Promise.all(seeds.map(async seed => ({
         seed,
-        ...await renderAvatar(env, request.url, manifest, seed, size),
+        ...await renderAvatar(env, request.url, manifest, seed, size, forcedTrait),
       })));
       return Response.json({ size, avatars }, {
         headers: { "Cache-Control": "no-store" },
