@@ -117,8 +117,8 @@ function avatarSize(value) {
 
 function epicTrait(seed) {
   const traitHash = hash32(`epic:${seed}`);
-  if (traitHash % 100 !== 0) return null;
-  return ["distortion", "glitch", "dislocation"][(traitHash >>> 8) % 3];
+  if (traitHash % 100 >= 5) return null;
+  return ["distortion", "glitch", "dislocation", "layer-swap", "chromatic-split", "negative-phase"][(traitHash >>> 8) % 6];
 }
 
 function epicDefs() {
@@ -128,6 +128,25 @@ function epicDefs() {
 function applyEpic(body, trait, seed) {
   if (!trait) return body;
   const content = body.replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
+  if (trait === "layer-swap") {
+    const swaps = [
+      ["#f04dca", "#54e6d3", "#ff9b45"],
+      ["#ff6b4a", "#62d9ff", "#c66cff"],
+      ["#8cff5a", "#ff5ebc", "#5e8cff"],
+    ];
+    const [base, frame, core] = swaps[hash32(`color:${seed}`) % swaps.length];
+    return body
+      .replace(/(<g data-layer="base"[^>]*)(color="[^"]*" style="color:[^"]*")/, `$1color="${base}" style="color:${base}"`)
+      .replace(/(<g data-layer="frame"[^>]*)(color="[^"]*" style="color:[^"]*")/, `$1color="${frame}" style="color:${frame}"`)
+      .replace(/(<g data-layer="core"[^>]*)(color="[^"]*" style="color:[^"]*")/, `$1color="${core}" style="color:${core}"`);
+  }
+  if (trait === "chromatic-split") {
+    const content = body.replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
+    return body.replace("</svg>", `<g opacity=".20" transform="translate(-6 0)" style="mix-blend-mode:screen;filter:hue-rotate(105deg)">${content}</g><g opacity=".18" transform="translate(6 0)" style="mix-blend-mode:screen;filter:hue-rotate(215deg)">${content}</g></svg>`);
+  }
+  if (trait === "negative-phase") {
+    return body.replace(">", '><defs><filter id="negative-phase"><feComponentTransfer><feFuncR type="table" tableValues="1 .05"/><feFuncG type="table" tableValues="1 .08"/><feFuncB type="table" tableValues="1 .12"/></feComponentTransfer></filter></defs><g filter="url(#negative-phase)">').replace("</svg>", "</g></svg>");
+  }
   if (trait === "distortion") {
     return body.replace(">", `>${epicDefs()}<g filter="url(#epic-distortion)">`).replace("</svg>", "</g></svg>");
   }
@@ -185,7 +204,7 @@ export default {
       const size = avatarSize(url.searchParams.get("size"));
       const manifest = JSON.parse(await readAsset(env, request.url, "/assets-svg/manifest.json"));
       const forceTrait = url.searchParams.get("trait");
-      const allowedTraits = new Set(["distortion", "glitch", "dislocation"]);
+      const allowedTraits = new Set(["distortion", "glitch", "dislocation", "layer-swap", "chromatic-split", "negative-phase"]);
       const forcedTrait = forceTrait && allowedTraits.has(forceTrait) ? forceTrait : undefined;
       const avatars = await Promise.all(seeds.map(async seed => ({
         seed,
