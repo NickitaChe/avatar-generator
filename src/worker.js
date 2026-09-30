@@ -103,15 +103,59 @@ function avatarRequest(pathname) {
   return encodedSeed === undefined ? undefined : decodeURIComponent(encodedSeed);
 }
 
+function escapeXml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;",
+  })[char]);
+}
+
 function avatarSize(value) {
   const requested = Number(value);
   const size = Number.isFinite(requested) && requested !== 0 ? requested : 512;
   return Math.max(16, Math.min(2048, Math.trunc(size)));
 }
 
+async function renderAvatar(env, requestUrl, manifest, seed, size) {
+  const hash = hash32(seed);
+  const { assets } = manifest;
+  const colors = palette(hash);
+  const pick = (items, value) => items[value % items.length];
+  const base = pick(assets.bases, hash);
+  const frame = pick(assets.frames, hash >>> 8);
+  const core = pick(assets.cores, hash >>> 16);
+  const [baseSvg, frameSvg, coreSvg] = await Promise.all([
+    readAsset(env, requestUrl, `/assets-svg/bases/${base}.svg`),
+    readAsset(env, requestUrl, `/assets-svg/frames/${frame}.svg`),
+    readAsset(env, requestUrl, `/assets-svg/cores/${core}.svg`),
+  ]);
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512" role="img" aria-label="Generated avatar">`,
+    `<rect data-layer="background" width="512" height="512" fill="${colors.background}"/>`,
+    layer(baseSvg, colors.base, "base"),
+    layer(frameSvg, colors.frame, "frame"),
+    layer(coreSvg, colors.core, "core"),
+    "</svg>",
+  ].join("");
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/avatars") {
+      const seeds = url.searchParams.getAll("seed").slice(0, 64);
+      if (!seeds.length) return new Response("At least one seed is required", { status: 400 });
+      const size = avatarSize(url.searchParams.get("size"));
+      const manifest = JSON.parse(await readAsset(env, request.url, "/assets-svg/manifest.json"));
+      const avatars = await Promise.all(seeds.map(async seed => ({
+        seed,
+        svg: await renderAvatar(env, request.url, manifest, seed, size),
+      })));
+      return Response.json({ size, avatars }, {
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+
     const pathSeed = avatarRequest(url.pathname);
 
     if (pathSeed === null) {
@@ -127,28 +171,7 @@ export default {
     const manifest = JSON.parse(
       await readAsset(env, request.url, "/assets-svg/manifest.json"),
     );
-    const hash = hash32(seed);
-    const { assets } = manifest;
-    const colors = palette(hash);
-    const pick = (items, value) => items[value % items.length];
-    const base = pick(assets.bases, hash);
-    const frame = pick(assets.frames, hash >>> 8);
-    const core = pick(assets.cores, hash >>> 16);
-
-    const [baseSvg, frameSvg, coreSvg] = await Promise.all([
-      readAsset(env, request.url, `/assets-svg/bases/${base}.svg`),
-      readAsset(env, request.url, `/assets-svg/frames/${frame}.svg`),
-      readAsset(env, request.url, `/assets-svg/cores/${core}.svg`),
-    ]);
-
-    const body = [
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512" role="img" aria-label="Generated avatar">`,
-      `<rect data-layer="background" width="512" height="512" fill="${colors.background}"/>`,
-      layer(baseSvg, colors.base, "base"),
-      layer(frameSvg, colors.frame, "frame"),
-      layer(coreSvg, colors.core, "core"),
-      "</svg>",
-    ].join("");
+    const body = await renderAvatar(env, request.url, manifest, seed, size);
 
     return new Response(body, {
       headers: {
