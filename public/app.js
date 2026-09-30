@@ -15,7 +15,7 @@ async function populate(){
 async function renderTraits(){
  traitsRoot.replaceChildren();
  const specimen="c819417def55";
- const variants=["distortion","glitch","dislocation"];
+ const variants=["distortion","glitch","dislocation","layer-swap","chromatic-split","negative-phase"];
  const results=await Promise.all(variants.map(trait=>batch([specimen],512,trait)));
  for(let i=0;i<variants.length;i++){
    const item=results[i].avatars[0];
