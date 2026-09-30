@@ -2,7 +2,7 @@ const hero=document.querySelector("#hero"),gallery=document.querySelector("#gall
 const makeSeed=()=>crypto.randomUUID().replaceAll("-","").slice(0,12);
 const svgUrl=svg=>"data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);
 async function batch(seeds,size=512,trait=null){const q=new URLSearchParams({size:String(size)});seeds.forEach(s=>q.append("seed",s));if(trait)q.set("trait",trait);const r=await fetch("/api/avatars?"+q);if(!r.ok)throw new Error("Batch avatar request failed");return r.json()}
-function tile(item,heroMode=false){const d=document.createElement("div");d.className=heroMode?"hero-avatar":"card";const img=new Image();img.src=svgUrl(item.svg);img.alt=`Generated avatar for ${item.seed}`;const s=document.createElement(heroMode?"div":"span");s.className=heroMode?"seed":"";s.textContent=item.seed;d.append(img,s);return d}
+function tile(item,heroMode=false){const d=document.createElement("div");d.className=heroMode?"hero-avatar":"card";const img=new Image();img.src=svgUrl(item.svg);img.alt=`Generated avatar for ${item.seed}`;const s=document.createElement(heroMode?"div":"span");s.className=heroMode?"seed":"";s.textContent=item.seed;d.append(img,s);if(item.trait){d.dataset.epic=item.trait;const badge=document.createElement("b");badge.className="epic-badge";badge.textContent=`EPIC · ${item.trait}`;d.append(badge)}return d}
 async function populate(){
  hero.replaceChildren();gallery.replaceChildren();
  const seeds=Array.from({length:16},makeSeed);
